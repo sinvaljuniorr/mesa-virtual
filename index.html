@@ -1,0 +1,331 @@
+<!doctype html>
+<!-- ============================================================
+     Mesa Virtual de RPG - Ordem Paranormal (v1, Etapa 0)
+     Abre com DUPLO CLIQUE neste arquivo (protocolo file://).
+     Sem frameworks: apenas HTML, CSS e JavaScript puros.
+     ============================================================ -->
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mesa Virtual</title>
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+
+  <!-- Barra de ferramentas do topo (48px) -->
+  <header id="barra">
+    <h1 id="titulo">Mesa Virtual</h1>
+
+    <!-- Ferramentas de alternar (uma ativa por vez) -->
+    <div class="grupo" role="toolbar" aria-label="Ferramentas">
+      <button id="bt-selecionar" class="ferramenta ativa">Selecionar (V)</button>
+      <button id="bt-mover" class="ferramenta">Mover mapa (H)</button>
+      <button id="bt-regua" class="ferramenta">Régua (R)</button>
+      <button id="bt-calibrar" class="ferramenta">Calibrar escala (C)</button>
+      <button id="bt-nevoa" class="ferramenta">Névoa (F)</button>
+    </div>
+
+    <!-- Botões de ação (inertes na Etapa 0; ficam ativos nas próximas etapas) -->
+    <div class="grupo" role="toolbar" aria-label="Ações">
+      <button id="bt-grade">Grade (G)</button>
+      <button id="bt-painel">Painel (Tab)</button>
+      <button id="bt-apresentar">Apresentar (P)</button>
+      <button id="bt-exportar">Exportar</button>
+      <button id="bt-importar">Importar</button>
+      <button id="bt-redefinir">Redefinir cena</button>
+    </div>
+  </header>
+
+  <!-- Área principal: canvas + elementos HTML por cima -->
+  <main id="area">
+
+    <!-- Banner de escala provisória (some quando a escala for calibrada) -->
+    <div id="banner-escala" class="banner">Escala provisória: use “Calibrar escala” para medir com precisão.</div>
+
+    <!-- Faixa vermelha de erro (aparece, por exemplo, quando falha imagem) -->
+    <div id="faixa-erro" class="faixa-erro oculta"></div>
+
+    <!-- O único canvas: mapa e, futuramente, grade, tokens e sobreposições -->
+    <canvas id="tela"></canvas>
+  </main>
+
+  <!-- Painel lateral do mestre (280px, à direita) -->
+  <aside id="painel">
+    <section class="secao">
+      <h2>Cena</h2>
+
+      <label for="campo-metros">Metros por quadrado</label>
+      <input id="campo-metros" type="number" min="0.5" step="0.5" value="1.5">
+
+      <div class="linha-info">
+        <span class="rotulo-auxiliar">Escala:</span>
+        <span id="info-escala">1 metro = 33,3 px</span>
+      </div>
+      <div class="linha-info">
+        <span id="estado-escala" class="rotulo-auxiliar">Escala provisória</span>
+      </div>
+    </section>
+
+    <!-- E4: controle da névoa de guerra -->
+    <section class="secao" id="secao-nevoa">
+      <h2>Névoa de guerra</h2>
+      <button id="bt-nevoa-ligar" class="w100">Névoa desligada</button>
+      <div id="nevoa-controles" class="oculta">
+        <label>Forma</label>
+        <div class="controle-tamanho">
+          <button id="bt-nevoa-pincel" class="ativa" title="Pincel (arraste)">Pincel</button>
+          <button id="bt-nevoa-retangulo" title="Retângulo (arraste)">Retângulo</button>
+        </div>
+        <label>Modo</label>
+        <div class="controle-tamanho">
+          <button id="bt-nevoa-revelar" class="ativa" title="Revelar">Revelar</button>
+          <button id="bt-nevoa-esconder" title="Esconder">Esconder</button>
+        </div>
+        <label for="campo-nevoa-pincel">Raio do pincel (células)</label>
+        <input id="campo-nevoa-pincel" type="number" min="0" max="6" step="1" value="1">
+        <button id="bt-nevoa-limpar" class="w100">Tudo revelado</button>
+        <button id="bt-nevoa-elevar" class="w100">Tudo escondido</button>
+      </div>
+    </section>
+
+    <!-- E5: rolador de d20 -->
+    <section class="secao" id="secao-d20">
+      <h2>d20</h2>
+      <label for="campo-modificador">Modificador</label>
+      <input id="campo-modificador" type="number" step="1" value="0">
+      <label>Vantagem</label>
+      <div class="controle-tamanho">
+        <button id="bt-vantagem" title="2d20, pega o maior">Vantagem</button>
+        <button id="bt-desvantagem" title="2d20, pega o menor">Desvantagem</button>
+      </div>
+      <button id="bt-rolar" class="w100 destaque">Rolar d20</button>
+      <div id="historico-rolagens" class="rotulo-auxiliar"></div>
+    </section>
+
+    <!-- Etapa 1: ficha resumida do token selecionado -->
+    <section class="secao" id="secao-token">
+      <h2>Token selecionado</h2>
+
+      <!-- Mostrado quando NADA está selecionado -->
+      <p id="token-vazio" class="rotulo-auxiliar">Clique em um token para editar.</p>
+
+      <!-- Mostrado quando um token está selecionado -->
+      <div id="token-controles" class="oculta">
+        <label for="campo-nome">Nome</label>
+        <input id="campo-nome" type="text" maxlength="40">
+
+        <label>Tamanho (quadrados)</label>
+        <div class="controle-tamanho">
+          <button id="bt-menos" title="Diminuir (tecla -)">−</button>
+          <input id="campo-tamanho" type="range" min="0.25" max="4" step="0.25" value="1">
+          <button id="bt-mais" title="Aumentar (tecla +)">+</button>
+        </div>
+        <div class="linha-info">
+          <span class="rotulo-auxiliar">Valor:</span>
+          <span id="info-tamanho">1</span>
+          <button id="bt-tamanho-padrao">Tamanho padrão</button>
+        </div>
+
+        <!-- E6: modo arma -->
+        <div id="arma-bloco">
+          <h3>Arma</h3>
+          <div id="arma-controle" class="controle-arma" role="radiogroup" aria-label="Modo arma">
+            <button id="bt-arma-sem" role="radio" aria-checked="true">Sem arma</button>
+            <button id="bt-arma-com" role="radio" aria-checked="false">Com arma</button>
+          </div>
+          <p id="arma-ficha" class="rotulo-auxiliar oculta"></p>
+          <p class="rotulo-auxiliar">Atalho: A</p>
+          <p id="arma-sem-imagem" class="rotulo-auxiliar oculta">Este token não tem imagem com arma.</p>
+        </div>
+
+        <!-- E6: falas prontas -->
+        <div id="falas-bloco">
+          <h3>Falas</h3>
+          <p id="falas-vazio" class="rotulo-auxiliar oculta">Este token não tem falas prontas.</p>
+          <div id="falas-controles" class="oculta">
+            <div class="linha-fala">
+              <label for="campo-fala-1">Fala 1</label>
+              <input id="campo-fala-1" type="text" maxlength="80" placeholder="Escreva uma fala">
+              <button id="bt-falar-1" aria-label="Falar fala 1">Falar</button>
+            </div>
+            <div class="linha-fala">
+              <label for="campo-fala-2">Fala 2</label>
+              <input id="campo-fala-2" type="text" maxlength="80" placeholder="Escreva uma fala">
+              <button id="bt-falar-2" aria-label="Falar fala 2">Falar</button>
+            </div>
+            <div class="linha-fala">
+              <label for="campo-fala-3">Fala 3</label>
+              <input id="campo-fala-3" type="text" maxlength="80" placeholder="Escreva uma fala">
+              <button id="bt-falar-3" aria-label="Falar fala 3">Falar</button>
+            </div>
+            <p class="rotulo-auxiliar">Atalhos: 1, 2 e 3 com o token selecionado.</p>
+            <button id="bt-restaurar-falas" class="w100">Restaurar falas padrão</button>
+          </div>
+        </div>
+
+        <!-- E3: token SEM ficha (monstro de teste) -->
+        <p id="token-sem-ficha" class="rotulo-auxiliar oculta">Este token não tem ficha.</p>
+
+        <!-- E3: ficha do token (nome/classe + recursos + detalhes) -->
+        <div id="ficha-blocos" class="oculta">
+          <h3>Ficha</h3>
+          <p id="ficha-nome" class="ficha-nome">Pierre</p>
+          <p id="ficha-linha-classe" class="rotulo-auxiliar"></p>
+
+          <h4>Recursos</h4>
+          <label for="campo-quantidade">Quantidade</label>
+          <input id="campo-quantidade" type="number" min="1" step="1" value="1">
+
+          <div class="recurso">
+            <span class="recurso-rotulo">PV</span>
+            <div class="recurso-barra" role="progressbar" id="progresso-pv"
+                 aria-label="PV" aria-valuemin="0">
+              <div class="recurso-preenchimento cor-pv"></div>
+            </div>
+            <input id="valor-pv" type="number" min="0" step="1" aria-label="PV atual">
+            <span class="separador">/</span>
+            <input id="max-pv" type="number" min="1" step="1" aria-label="PV máximo">
+            <button id="bt-pv-menos" aria-label="Diminuir PV">−</button>
+            <button id="bt-pv-mais" aria-label="Aumentar PV">+</button>
+          </div>
+
+          <div class="recurso">
+            <span class="recurso-rotulo">Sanidade</span>
+            <div class="recurso-barra" role="progressbar" id="progresso-san"
+                 aria-label="Sanidade" aria-valuemin="0">
+              <div class="recurso-preenchimento cor-san"></div>
+            </div>
+            <input id="valor-san" type="number" min="0" step="1" aria-label="Sanidade atual">
+            <span class="separador">/</span>
+            <input id="max-san" type="number" min="1" step="1" aria-label="Sanidade máxima">
+            <button id="bt-san-menos" aria-label="Diminuir Sanidade">−</button>
+            <button id="bt-san-mais" aria-label="Aumentar Sanidade">+</button>
+          </div>
+
+          <div class="recurso">
+            <span class="recurso-rotulo">PE</span>
+            <div class="recurso-barra" role="progressbar" id="progresso-pe"
+                 aria-label="PE" aria-valuemin="0">
+              <div class="recurso-preenchimento cor-pe"></div>
+            </div>
+            <input id="valor-pe" type="number" min="0" step="1" aria-label="PE atual">
+            <span class="separador">/</span>
+            <input id="max-pe" type="number" min="1" step="1" aria-label="PE máximo">
+            <button id="bt-pe-menos" aria-label="Diminuir PE">−</button>
+            <button id="bt-pe-mais" aria-label="Aumentar PE">+</button>
+          </div>
+
+          <!-- Estados "Morrendo" e "Enlouquecendo" (nem sempre visíveis) -->
+          <p id="faixa-morrendo" class="faixa-estado oculta">Morrendo</p>
+          <div id="rodadas-morrendo" class="rodadas oculta">
+            <span class="rotulo-auxiliar">Rodadas morrendo</span>
+            <input type="checkbox" class="caixa-rodada" aria-label="Rodada 1 morrendo">
+            <input type="checkbox" class="caixa-rodada" aria-label="Rodada 2 morrendo">
+            <input type="checkbox" class="caixa-rodada" aria-label="Rodada 3 morrendo">
+            <span id="aviso-morrendo" class="aviso-rodadas oculta">Três rodadas marcadas.</span>
+          </div>
+
+          <p id="faixa-enlouquecendo" class="faixa-estado oculta">Enlouquecendo</p>
+          <div id="rodadas-enlouquecendo" class="rodadas oculta">
+            <span class="rotulo-auxiliar">Rodadas enlouquecendo</span>
+            <input type="checkbox" class="caixa-rodada" aria-label="Rodada 1 enlouquecendo">
+            <input type="checkbox" class="caixa-rodada" aria-label="Rodada 2 enlouquecendo">
+            <input type="checkbox" class="caixa-rodada" aria-label="Rodada 3 enlouquecendo">
+            <span id="aviso-enlouquecendo" class="aviso-rodadas oculta">Três rodadas marcadas.</span>
+          </div>
+
+          <!-- Blocos recolhíveis da ficha de papel -->
+          <details open>
+            <summary>Atributos</summary>
+            <p id="ficha-atributos"></p>
+          </details>
+          <details open>
+            <summary>Defesa</summary>
+            <p id="ficha-defesa"></p>
+            <p id="ficha-protecao"></p>
+            <p id="ficha-resistencias"></p>
+          </details>
+          <details open>
+            <summary>Ataque</summary>
+            <p id="ficha-ataque"></p>
+            <p id="ficha-ataque-especial"></p>
+          </details>
+          <details>
+            <summary>Perícias treinadas</summary>
+            <p id="ficha-pericias"></p>
+          </details>
+        </div>
+        <!-- E5: Fatality (só aparece se houver no manifest) -->
+        <button id="bt-fatality" class="w100 destaque oculta">Fatality</button>
+        <div id="menu-fatality" class="menu-fatality oculta"></div>
+      </div>
+    </section>
+
+    <!-- E6: chat livre (fixo no fim do painel) -->
+    <section class="secao" id="secao-chat">
+      <h2>Chat</h2>
+      <p id="chat-rotulo" class="rotulo-auxiliar">Selecione um token para falar.</p>
+      <input id="campo-chat" type="text" maxlength="140"
+             placeholder="Digite uma fala e aperte Enter"
+             aria-label="Mensagem do chat" disabled>
+      <button id="bt-enviar-chat" class="w100" disabled>Enviar</button>
+      <div id="historico-chat" class="historico-chat" aria-live="polite">
+        <p class="rotulo-auxiliar">Nenhuma mensagem ainda.</p>
+      </div>
+      <button id="bt-limpar-chat" class="w100">Limpar chat</button>
+    </section>
+  </aside>
+
+  <!-- Etapa 2: diálogo de calibração (elemento <dialog> nativo do HTML;
+       funciona em file:// e abre com showModal() por JS). -->
+  <dialog id="dialog-calibrar">
+    <h2>Calibrar escala</h2>
+    <p>Quantos metros tem a distância marcada?</p>
+    <label for="campo-metros-calibrar">Metros</label>
+    <input id="campo-metros-calibrar" type="number" min="0" step="any">
+    <p id="erro-calibrar" class="erro-dialogo oculta">Digite um número maior que zero.</p>
+    <div class="botoes-dialogo">
+      <button id="bt-salvar-escala">Salvar escala</button>
+      <button id="bt-cancelar-escala">Cancelar</button>
+    </div>
+  </dialog>
+
+  <!-- Etapa 2: dica da ferramenta ativa (por cima do canvas) -->
+  <div id="dica" class="dica oculta"></div>
+
+  <!-- E5: bolha do resultado de rolagem (flutuante, some em 5 s) -->
+  <div id="bolha-rolagem" class="bolha-rolagem oculta"></div>
+
+  <!-- E5: Fatality — fundo escurecido + canvas da animação (por cima de tudo) -->
+  <div id="escuro-fatality" class="oculta"></div>
+  <div id="overlay-fatality" class="oculta">
+    <canvas id="tela-fatality"></canvas>
+  </div>
+
+  <!-- Input escondido para o botão "Importar" (leitura de arquivo local) -->
+  <input id="entrada-arquivo" type="file" accept="application/json,.json" class="oculta" style="display:none">
+
+  <!-- Scripts em ordem fixa: dados -> módulos de lógica -> inicialização.
+       Não use ES modules: em file:// eles não funcionam por CORS. -->
+  <script src="data/cena-casa.js"></script>
+  <script src="data/tokens.js"></script>
+  <script src="data/falas.js"></script>
+  <script src="data/ficha-pierre.js"></script>
+  <script src="data/fatality-manifest.js"></script>
+  <script src="js/coords.js"></script>
+  <script src="js/ficha.js"></script>
+  <script src="js/nevoa.js"></script>
+  <script src="js/arma.js"></script>
+  <script src="js/baloes.js"></script>
+  <script src="js/dado.js"></script>
+  <script src="js/fatality.js"></script>
+  <script src="js/estado.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/entrada.js"></script>
+  <script src="js/ferramentas.js"></script>
+  <script src="js/interface.js"></script>
+  <script src="js/dados-iniciais.js"></script>
+  <script src="js/principal.js"></script>
+</body>
+</html>

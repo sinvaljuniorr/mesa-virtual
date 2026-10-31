@@ -1,0 +1,594 @@
+/* ==========================================================================
+   Mesa Virtual - Ordem Paranormal (v1, Etapa 0)
+   Estilo global: dark, sério, sombrio, com tokens de design fixos.
+   ========================================================================== */
+
+/* ---------- 1. Tokens de design (docs seção 5.1) ---------- */
+:root {
+  --bg: #0E0F11;             /* fundo da página e área fora do mapa */
+  --panel: #17191C;          /* barra de ferramentas e painel lateral */
+  --panel-border: #2B2F34;   /* bordas */
+  --hover: #22262A;          /* hover de botões */
+  --ink: #E8E6E3;            /* texto principal (contraste > 4,5:1) */
+  --muted: #A3A8AE;          /* texto secundário (contraste > 4,5:1) */
+  --accent: #9B1B30;         /* ferramenta ativa / monstro de teste */
+  --gold: #D4A72C;           /* seleção, régua, foco */
+  --danger: #D64545;         /* mensagens de erro */
+  --pv: #D64545;             /* barra de PV (E3) */
+  --san: #7B88F0;            /* barra de Sanidade (E3) */
+  --pe: #E08A2E;             /* barra de PE (E3) */
+  --bolha-bg: #F2EFEA;       /* fundo do balão de fala (E6) */
+  --bolha-ink: #0E0F11;      /* texto do balão (E6) */
+  --bolha-borda: #0E0F11;    /* borda e ponta do balão (E6) */
+}
+
+/* ---------- 2. Base ---------- */
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  display: grid;
+  grid-template-rows: 48px 1fr;
+  overflow: hidden; /* a mesa não rola a página; rola o mapa com pan */
+}
+
+/* ---------- 3. Barra de ferramentas ---------- */
+#barra {
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 48px;
+}
+
+#titulo {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 16px 0 0;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.grupo {
+  display: flex;
+  gap: 4px;
+  margin-right: 16px;
+}
+
+/* Legendas nunca quebram no meio (ex.: "Mover mapa (H)" fica inteiro). */
+button { white-space: nowrap; }
+
+/* ---------- 4. Botões ---------- */
+button {
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+button:hover:not(:disabled) { background: var(--hover); }
+
+/* Ferramenta ativa: fundo vermelho, texto branco */
+button.ferramenta.ativa {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
+}
+
+/* Foco teclado acessível: contorno dourado afastado 2px */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+button:disabled { opacity: 0.45; cursor: default; }
+
+/* E6: altura mínima confortável em todos os controles. */
+button,
+input,
+select,
+textarea { min-height: 32px; }
+
+/* ---------- 5. Área principal (canvas) ---------- */
+#area {
+  position: relative; /* referência para banner, faixa e painel por cima */
+  overflow: hidden;
+}
+
+#tela {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: default; /* entra.js troca por grab/grabbing/crosshair */
+}
+
+/* ---------- 6. Banner provisório + faixa de erro ---------- */
+.banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(23, 25, 28, 0.92);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  pointer-events: none; /* não atrapalha o mouse sobre o canvas */
+  z-index: 5;
+}
+
+.faixa-erro {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--danger);
+  color: #FFFFFF;
+  padding: 6px 12px;
+  font-size: 13px;
+  z-index: 6;
+}
+
+.oculta { display: none; }
+
+/* ---------- 7. Painel lateral do mestre ---------- */
+#painel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;                 /* E3: 280 -> 320 (cabe a ficha) */
+  background: var(--panel);
+  border-left: 1px solid var(--panel-border);
+  padding: 8px 12px;
+  overflow-y: auto;             /* rolagem própria (E3) */
+  z-index: 10;
+}
+
+.secao h2 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin: 8px 0;
+}
+
+#painel label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 8px 0 4px;
+}
+
+#painel input[type="number"] {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 130px;
+}
+
+.linha-info {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.rotulo-auxiliar {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.controle-tamanho {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.controle-tamanho button {
+  width: 32px;
+  padding: 6px 0;
+  font-weight: 600;
+}
+
+.controle-tamanho input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
+#bt-tamanho-padrao {
+  font-size: 13px;
+  padding: 4px 8px;
+  margin-left: 8px;
+}
+
+/* ---------- 8. Diálogo de calibração e dicas (Etapa 2) ---------- */#dialog-calibrar {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font: inherit;
+  min-width: 300px;
+}
+
+#dialog-calibrar h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+#dialog-calibrar p { font-size: 13px; color: var(--muted); }
+
+#dialog-calibrar label {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 8px 0 4px;
+}
+
+#dialog-calibrar input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 140px;
+}
+
+.erro-dialogo { color: var(--danger); }
+
+.botoes-dialogo {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Dica da ferramenta (régua/calibração), embaixo do banner */
+.dica {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(23, 25, 28, 0.92);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  pointer-events: none;
+  z-index: 5;
+  max-width: 90%;
+}
+
+/* ---------- 8b. Ficha do token (E3) ---------- */
+#ficha-blocos h3 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
+
+.ficha-nome {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 4px 0 2px;
+}
+
+#ficha-blocos h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 10px 0 4px;
+}
+
+/* Linha de um recurso: rótulo | barra | atual / max | − + */
+.recurso {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.recurso-rotulo { font-size: 13px; min-width: 64px; }
+
+.recurso-barra {
+  flex: 1;
+  height: 8px;
+  min-width: 48px;
+  background: rgba(14, 15, 17, 0.85);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.recurso-preenchimento {
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+}
+.cor-pv { background: var(--pv); }
+.cor-san { background: var(--san); }
+.cor-pe { background: var(--pe); }
+
+.recurso input[type="number"] {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  width: 52px;
+}
+
+.recurso button {
+  min-width: 32px;   /* 32x32 no mínimo (acessibilidade E3) */
+  min-height: 32px;
+}
+
+.separador { color: var(--muted); }
+
+/* Faixa de estado "Morrendo"/"Enlouquecendo" */
+.faixa-estado {
+  background: var(--danger);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 8px 0 4px;
+  text-align: center;
+}
+
+.rodadas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.caixa-rodada {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.aviso-rodadas {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Blocos recolhíveis da ficha */
+#ficha-blocos details {
+  margin: 8px 0;
+}
+
+#ficha-blocos summary {
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#ficha-blocos summary:hover { color: var(--gold); }
+
+#ficha-blocos details p {
+  font-size: 13px;
+  color: var(--ink);
+  margin: 4px 0 0 8px;
+  white-space: pre-line;
+}
+
+/* ---------- 8e. Arma, falas e chat (E6) ---------- */
+#arma-bloco h3,
+#falas-bloco h3 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
+
+#arma-bloco .rotulo-auxiliar,
+#falas-bloco .rotulo-auxiliar {
+  margin: 4px 0;
+}
+
+/* Dois botões lado a lado; o ativo fica vermelho com texto branco. */
+.controle-arma {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.controle-arma button { flex: 1; min-height: 32px; }
+
+.controle-arma button.ativa {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
+}
+
+/* Linha de fala: rótulo | campo | botão "Falar". */
+.linha-fala {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+#painel .linha-fala label {
+  margin: 0;
+  font-size: 13px;
+}
+
+.linha-fala input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.linha-fala button { min-height: 32px; padding: 4px 8px; }
+
+/* Chat fixo no fim do painel. */
+#secao-chat {
+  border-top: 1px solid var(--panel-border);
+  margin-top: 12px;
+  padding-top: 4px;
+}
+
+#campo-chat {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+#campo-chat:disabled { opacity: 0.45; }
+
+.historico-chat {
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 8px 0;
+}
+
+.historico-chat .linha-chat {
+  margin: 2px 0;
+  font-size: 13px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.historico-chat .rotulo-auxiliar { margin: 2px 0; }
+
+/* ---------- 9. Telas estreitas: painel sobrepõe o canvas ---------- */
+
+/* ---------- 8c. Névoa e apresentação (E4) ---------- */
+.w100 { width: 100%; margin: 4px 0; }
+
+/* Banner/dica escondidos no modo apresentação (sem conflita com a
+   lógica de escala, que usa .oculta). */
+.oculta-nesta-tela { display: none !important; }
+
+#secao-nevoa .controle-tamanho button {
+  flex: 1;
+}
+
+#nevoa-controles button.ativa {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
+}
+
+#campo-nevoa-pincel {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  width: 72px;
+}
+
+/* ---------- 8d. d20 e Fatality (E5) ---------- */
+.destaque {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.linha-historico {
+  margin: 3px 0;
+  font-size: 12px;
+  color: var(--ink-soft, #B9B7B3);
+}
+
+.linha-historico.critico { color: #FFD75E; font-weight: 700; }
+.linha-historico.falha   { color: #FF7A6E; font-weight: 700; }
+
+/* Bolha flutuante do resultado (estilo LoL chat): fundo escuro, borda gold */
+.bolha-rolagem {
+  position: absolute;
+  z-index: 60;
+  background: rgba(14, 15, 17, 0.92);
+  border: 1px solid #D4A72C;
+  border-radius: 8px;
+  color: #E8E6E3;
+  font: 600 13px system-ui, "Segoe UI", Roboto, sans-serif;
+  padding: 6px 10px;
+  max-width: 260px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.menu-fatality button {
+  margin: 3px 0;
+}
+
+/* Fatality: fundo escurecido (clicável para pular) + canvas por cima */
+#escuro-fatality {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 80;
+}
+
+#overlay-fatality {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+}
+
+#tela-fatality {
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 900px) {
+  #painel {
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ---------- 10. Movimento reduzido ---------- */
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+}
